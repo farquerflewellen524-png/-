@@ -13,6 +13,28 @@ const truncate = (value: string, max = 120) => {
 
 const gptAvailable = () => GPT_ENABLED && Boolean(OPENAI_API_KEY);
 
+const guidelineSearchUrl = (query: string) =>
+  `https://www.google.com/search?q=${encodeURIComponent(`${query} guideline OR 指南`)}`;
+
+const pubmedSearchUrl = (query: string) =>
+  `https://pubmed.ncbi.nlm.nih.gov/?term=${encodeURIComponent(query)}`;
+
+const webSearchTool = {
+  type: 'web_search',
+  search_context_size: 'medium',
+  user_location: {
+    type: 'approximate',
+    country: 'CN',
+  },
+};
+
+const withWebSearch = (body: Record<string, unknown>) => ({
+  tools: [webSearchTool],
+  tool_choice: 'auto',
+  include: ['web_search_call.action.sources'],
+  ...body,
+});
+
 const extractResponseText = (payload: any) => {
   if (typeof payload?.output_text === 'string') return payload.output_text;
 
@@ -91,6 +113,23 @@ const clinicalTemplates: ClinicalTemplate[] = [
     ],
     plan: '围绕胸痛病例先按急性胸痛绿色通道处理：监测生命体征、复查心电图和肌钙蛋白，排除夹层/肺栓塞等危重鉴别；无禁忌时按 ACS 规范启动抗栓、调脂和症状控制，并尽早请心内科评估再灌注/介入策略。',
     followUpTasks: ['0/1-3 小时复查肌钙蛋白和心电图', '持续心电监护并记录胸痛变化', '复核抗栓禁忌证和出血评分', '跟进心超/冠脉 CTA 或造影安排', '交接再灌注时间节点'],
+  },
+  {
+    match: /(糖尿病肾病|糖肾|糖神|糖尿病.*肾|蛋白尿|微量白蛋白|尿白蛋白|UACR|eGFR.*糖尿病|糖尿病.*eGFR)/i,
+    diagnosis: ['糖尿病肾病/糖尿病肾脏病需重点评估', '慢性肾脏病分期及蛋白尿分层待明确', '高血压肾损害、原发肾小球疾病等非糖尿病肾病需鉴别'],
+    omitted: ['复查尿白蛋白/肌酐比值 UACR 和尿常规', '计算 eGFR 并评估 CKD 分期、血钾和肌酐趋势', '评估眼底病变、糖化血红蛋白、血压和心血管风险', '若血尿、蛋白尿快速进展或肾功能急降，需肾内科评估非糖尿病肾病'],
+    medications: ['SGLT2 抑制剂在 eGFR 允许且无禁忌时优先评估', 'ACEI/ARB 适用于合并高血压或白蛋白尿者并监测肌酐/血钾', 'GLP-1 受体激动剂可结合血糖、体重和心血管风险评估', '控糖、控压、调脂和限盐需个体化，避免肾毒性药物'],
+    complications: ['CKD 进展至终末期肾病', '高钾血症或急性肾损伤', '心血管事件和心衰风险升高', '低血糖、感染或药物相关不良反应'],
+    guidelines: [
+      { title: 'KDIGO Diabetes Management in CKD Guideline', url: 'https://kdigo.org/guidelines/diabetes-ckd/' },
+      { title: 'American Diabetes Association Standards of Care', url: 'https://diabetesjournals.org/care/issue' },
+    ],
+    scales: [
+      { name: 'CKD G-A 分期', items: ['eGFR 分期', 'UACR 分层', '血压', '肾功能趋势'] },
+      { name: '糖尿病并发症风险评估', items: ['HbA1c', '眼底病变', '心血管病史', '用药禁忌证'] },
+    ],
+    plan: '围绕糖尿病肾病/糖尿病肾脏病病例，先用 eGFR 与 UACR 明确 CKD 分层，同时核对血压、HbA1c、血钾和心血管风险；在无禁忌时按指南评估 ACEI/ARB、SGLT2 抑制剂、GLP-1RA 等，并警惕非糖尿病肾病线索。',
+    followUpTasks: ['复查 UACR、尿常规、肌酐/eGFR 和血钾', '记录血压、血糖和 HbA1c 控制目标', '核对 ACEI/ARB、SGLT2 抑制剂禁忌证', '筛查眼底、神经病变和心血管风险', '肾功能快速下降或血尿时转肾内科'],
   },
   {
     match: /(发热|咳嗽|咳痰|肺炎|气促|呼吸困难|感染|白细胞|CRP|PCT)/i,
@@ -195,8 +234,8 @@ const getLocalClinicalAnalysis = (description: string, imageBase64?: string): Cl
       `延迟复评导致诊疗窗口延误风险`,
     ],
     guidelines: [
-      { title: `围绕“${caseSummary}”检索国家卫健委/本院临床路径`, url: 'https://www.nhc.gov.cn/' },
-      { title: `围绕“${caseSummary}”检索 BMJ Best Practice 或专科指南`, url: 'https://bestpractice.bmj.com/' },
+      { title: `国家卫健委/本院临床路径：${caseSummary}`, url: guidelineSearchUrl(`${caseSummary} 国家卫健委 临床路径`) },
+      { title: `BMJ Best Practice/专科指南：${caseSummary}`, url: guidelineSearchUrl(`${caseSummary} BMJ Best Practice specialty guideline`) },
     ],
     scales: [
       { name: `“${caseSummary}”病情严重程度复评`, items: ['生命体征', '疼痛/症状评分', '关键实验室指标', '影像或专科体征'] },
@@ -221,12 +260,12 @@ const getLocalResearchInsight = (topic: string): ResearchInsight => {
       {
         title: `${keyword}：请在 PubMed、Web of Science 或指南数据库中检索最新证据`,
         journal: '本地检索提示',
-        link: `https://pubmed.ncbi.nlm.nih.gov/?term=${encodeURIComponent(topic || 'medical research')}`,
+        link: pubmedSearchUrl(topic || 'medical research'),
       },
       {
         title: '建议优先筛选系统综述、随机对照研究、真实世界研究和最新指南',
         journal: '证据等级建议',
-        link: 'https://www.cochranelibrary.com/',
+        link: guidelineSearchUrl(`${keyword} systematic review clinical guideline`),
       },
     ],
     ideas: [
@@ -274,12 +313,12 @@ export const analyzeCase = async (description: string, imageBase64?: string): Pr
     });
   }
 
-  const text = await createResponse({
-    instructions: `你是资深临床医学专家。根据病例描述输出严格 JSON，不要输出 Markdown。
-字段要求：diagnosis 最多 3 项；omitted、medications、complications 各最多 4 项；guidelines 最多 2 项且包含 title 和 url；scales 最多 2 项且每项 items 最多 4 项；plan 250 字以内；followUpTasks 最多 5 项。所有字段都必须紧扣用户提供的病例信息，明确说明诊断依据、用药前提、鉴别诊断检查和风险来源；不得输出与病例无关的通用模板。内容必须专业、精炼，并提醒遵循医院规范和上级医师意见。`,
+  const text = await createResponse(withWebSearch({
+    instructions: `你是资深临床医学专家。你已经获得联网检索权限：请直接使用 web_search 查询该病例相关的最新权威指南、用药依据、鉴别诊断和风险信息，不要让用户自行搜索。根据病例描述输出严格 JSON，不要输出 Markdown。
+字段要求：diagnosis 最多 3 项；omitted、medications、complications 各最多 4 项；guidelines 最多 2 项且包含 title 和 url；scales 最多 2 项且每项 items 最多 4 项；plan 250 字以内；followUpTasks 最多 5 项。所有字段都必须紧扣用户提供的病例信息，明确说明诊断依据、用药前提、鉴别诊断检查和风险来源；不得输出与病例无关的通用模板。guidelines 必须填入你实际检索到的可点击权威链接。内容必须专业、精炼，并提醒遵循医院规范和上级医师意见。`,
     input: [{ role: 'user', content: inputContent }],
     max_output_tokens: 4096,
-  });
+  }));
 
   return parseJsonResponse<ClinicalAnalysis>(text, fallback);
 };
@@ -297,11 +336,11 @@ export const answerClinicalFollowUp = async (analysis: ClinicalAnalysis, userMes
     return localReply;
   }
 
-  return createResponse({
-    instructions: '你是资深医学带教老师。必须基于既有病例分析和用户追问回答，围绕该病例的诊断、指南、用药、鉴别诊断、风险和随访展开；不得输出与病例无关的泛泛建议。回答需简洁、审慎、符合临床安全原则，避免替代医嘱。',
+  return createResponse(withWebSearch({
+    instructions: '你是资深医学带教老师。你已经获得联网检索权限：当追问涉及指南、药物、鉴别诊断、风险或随访时，请直接使用 web_search 核验信息并给出可点击来源，不要让用户自行搜索。必须基于既有病例分析和用户追问回答，围绕该病例的诊断、指南、用药、鉴别诊断、风险和随访展开；不得输出与病例无关的泛泛建议。回答需简洁、审慎、符合临床安全原则，避免替代医嘱。',
     input: `既有分析：${JSON.stringify(analysis)}\n\n用户追问：${userMessage}`,
     max_output_tokens: 1200,
-  });
+  }));
 };
 
 export const getResearchHelp = async (topic: string): Promise<ResearchInsight> => {
@@ -312,12 +351,12 @@ export const getResearchHelp = async (topic: string): Promise<ResearchInsight> =
     return fallback;
   }
 
-  const text = await createResponse({
-    instructions: `你是医学科研助手。请围绕用户研究主题输出严格 JSON，不要输出 Markdown。
-字段要求：literatures 为 10 篇高质量参考方向或可检索文献线索，每项包含 title、journal、link；ideas 为 3-5 个创新点；managementTips 为 3-5 条项目管理建议。所有在线检索链接需使用可访问的检索入口或期刊主页。`,
+  const text = await createResponse(withWebSearch({
+    instructions: `你是医学科研助手。你已经获得联网检索权限：请直接使用 web_search 围绕用户研究主题检索文献、指南和研究进展，不要让用户自行搜索。请输出严格 JSON，不要输出 Markdown。
+字段要求：literatures 为 10 篇你实际检索到或核验过的高质量参考文献/指南线索，每项包含 title、journal、link；ideas 为 3-5 个创新点；managementTips 为 3-5 条项目管理建议。link 必须是可访问的原文、PubMed、期刊或指南页面。`,
     input: `研究主题：${topic}`,
     max_output_tokens: 4096,
-  });
+  }));
 
   return parseJsonResponse<ResearchInsight>(text, fallback);
 };
