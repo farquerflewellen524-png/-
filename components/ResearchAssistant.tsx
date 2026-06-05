@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { getResearchHelp, translateText } from '../services/geminiService';
+import { getResearchHelp, translateText } from '../services/localInsightService';
 import { ResearchInsight, HistoryItem } from '../types';
 import { useHistory } from '../hooks/useHistory';
 import { HistorySection } from './HistorySection';

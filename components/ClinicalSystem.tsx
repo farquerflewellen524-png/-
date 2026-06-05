@@ -1,8 +1,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
-import { analyzeCase } from '../services/geminiService';
+import { analyzeCase, answerClinicalFollowUp } from '../services/localInsightService';
 import { ClinicalAnalysis, HistoryItem } from '../types';
-import { GoogleGenAI } from "@google/genai";
 import { useHistory } from '../hooks/useHistory';
 import { HistorySection } from './HistorySection';
 import { downloadHistoryItem, downloadGuideline } from '../lib/downloadUtils';
@@ -162,23 +161,9 @@ export const ClinicalSystem: React.FC = React.memo(() => {
     setIsFollowUpLoading(true);
 
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
-      const context = `
-        基于以下临床分析：
-        诊断：${analysis.diagnosis.join(', ')}
-        建议用药：${analysis.medications.join(', ')}
-        诊疗方案：${analysis.plan}
-        
-        用户提出了新的需求或问题：${userMessage}
-        请作为资深医学专家进行针对性回答或调整建议。
-      `;
-      
-      const response = await ai.models.generateContent({
-        model: 'gemini-3-flash-preview',
-        contents: context,
-      });
+      const reply = await answerClinicalFollowUp(analysis, userMessage);
 
-      setChatHistory(prev => [...prev, { role: 'assistant', text: response.text || '无法生成回复。' }]);
+      setChatHistory(prev => [...prev, { role: 'assistant', text: reply }]);
     } catch (error) {
       console.error(error);
       setChatHistory(prev => [...prev, { role: 'assistant', text: '抱歉，处理您的请求时出错。' }]);
