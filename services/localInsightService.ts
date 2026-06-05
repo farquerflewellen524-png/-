@@ -189,8 +189,8 @@ const getMatchedClinicalTemplate = (description: string) => {
   return clinicalTemplates.find(template => template.match.test(normalized));
 };
 
-const contextualizeItems = (items: string[], caseSummary: string) =>
-  items.map(item => `${item}（结合病例：${caseSummary}）`);
+const contextualizeItems = (items: string[], _caseSummary: string) =>
+  items;
 
 const getLocalClinicalAnalysis = (description: string, imageBase64?: string): ClinicalAnalysis => {
   const caseSummary = truncate(description || (imageBase64 ? '已上传影像资料' : '未提供病例描述'), 80);
