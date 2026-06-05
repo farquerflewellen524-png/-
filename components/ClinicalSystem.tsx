@@ -195,7 +195,7 @@ export const ClinicalSystem: React.FC = React.memo(() => {
               <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 to-blue-400">决策工作站</span>
             </h2>
             <p className="text-slate-400 text-lg max-w-xl">
-              深度整合循证医学知识库。输入病例数据，AI 将立即调取全球最新指南、药典与临床量表，为您梳理严密的诊断逻辑。
+              深度整合循证医学知识库。输入病例数据，AI 将立即调取全球最新指南、药典与临床量表，直接生成诊断、治疗、用药、鉴别诊断与风险参考。
             </p>
           </div>
           
@@ -392,7 +392,7 @@ export const ClinicalSystem: React.FC = React.memo(() => {
                     <span className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
                       <i className="fa-solid fa-scroll-old"></i>
                     </span>
-                    标准诊疗方案模型
+                    诊断与治疗参考方案
                   </h3>
                   <div className="bg-slate-50 rounded-[2rem] p-8 prose prose-slate max-w-none text-slate-700 font-medium leading-loose whitespace-pre-wrap border border-slate-100">
                     {analysis.plan}
@@ -424,7 +424,7 @@ export const ClinicalSystem: React.FC = React.memo(() => {
                   <div className="absolute top-0 right-0 p-8 opacity-20 group-hover:scale-110 transition-transform">
                     <i className="fa-solid fa-capsules text-6xl"></i>
                   </div>
-                  <h3 className="text-xl font-black mb-6">智慧用药助手</h3>
+                  <h3 className="text-xl font-black mb-6">治疗与用药方案</h3>
                   <div className="space-y-3">
                     {(analysis.medications || []).map((m, i) => (
                       <div key={i} className="p-4 bg-white/10 backdrop-blur-md rounded-2xl border border-white/10 flex items-center gap-3">
@@ -509,7 +509,7 @@ export const ClinicalSystem: React.FC = React.memo(() => {
                   </div>
                   <div>
                     <h3 className="text-2xl font-black text-slate-800">诊疗深度对话</h3>
-                    <p className="text-slate-500 text-sm font-medium">针对以上分析结果，您可以继续提出个性化需求或疑问</p>
+                    <p className="text-slate-500 text-sm font-medium">针对以上诊断与治疗参考，您可以继续提出个性化需求或疑问</p>
                   </div>
                 </div>
 

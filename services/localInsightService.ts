@@ -213,7 +213,7 @@ const getLocalClinicalAnalysis = (description: string, imageBase64?: string): Cl
     diagnosis: [
       `围绕“${caseSummary}”形成主要临床诊断假设`,
       `根据“${caseSummary}”优先排查常见病与急危重症`,
-      `若资料不足，需补充信息后由上级医师确认“${caseSummary}”相关诊断`,
+      `若资料不足，标注待补充信息并给出“${caseSummary}”相关拟诊方向`,
     ],
     omitted: [
       `补充与“${caseSummary}”直接相关的现病史、诱因、持续时间和伴随症状`,
@@ -222,10 +222,10 @@ const getLocalClinicalAnalysis = (description: string, imageBase64?: string): Cl
       `列出“${caseSummary}”的鉴别诊断，并记录支持/反对依据`,
     ],
     medications: [
-      `暂不直接处方；需先结合“${caseSummary}”明确诊断、禁忌证和肝肾功能`,
+      `围绕“${caseSummary}”生成初始治疗与用药方案，并注明适用前提、禁忌证和肝肾功能要求`,
       `可围绕“${caseSummary}”给予必要的对症支持治疗并观察疗效`,
       `若提示感染、缺血、疼痛或过敏等方向，应按对应专科路径选择药物`,
-      `所有用药需核对过敏史、妊娠状态、相互作用和本院规范`,
+      `同步列出用药前需核对的过敏史、妊娠状态、相互作用和剂量调整要点`,
     ],
     complications: [
       `“${caseSummary}”相关病情进展或漏诊风险`,
@@ -241,11 +241,11 @@ const getLocalClinicalAnalysis = (description: string, imageBase64?: string): Cl
       { name: `“${caseSummary}”病情严重程度复评`, items: ['生命体征', '疼痛/症状评分', '关键实验室指标', '影像或专科体征'] },
       { name: `“${caseSummary}”急危重症预警`, items: ['意识状态', '血压/心率', '血氧/呼吸', '尿量/灌注'] },
     ],
-    plan: `针对用户提供的病例信息“${caseSummary}”，先确认生命体征和急危重症风险，再补充病史、查体和针对性检查；根据结果形成主要诊断与鉴别诊断，按本院规范和上级医师意见制定用药及处置，并动态复评风险。`,
+    plan: `针对用户提供的病例信息“${caseSummary}”，先确认生命体征和急危重症风险，再补充病史、查体和针对性检查；根据结果形成主要诊断与鉴别诊断，直接生成参考性的诊断、治疗、用药及处置方案，并动态复评风险。`,
     followUpTasks: [
       `复核“${caseSummary}”相关病史、体征和检查结果`,
       `列出“${caseSummary}”主要诊断及鉴别依据`,
-      `向上级医师汇报“${caseSummary}”处置优先级`,
+      `整理“${caseSummary}”处置优先级、治疗节点和复评指标`,
       `观察“${caseSummary}”症状变化和治疗反应`,
       `整理“${caseSummary}”后续复查、随访和宣教计划`,
     ],
@@ -315,7 +315,7 @@ export const analyzeCase = async (description: string, imageBase64?: string): Pr
 
   const text = await createResponse(withWebSearch({
     instructions: `你是资深临床医学专家。你已经获得联网检索权限：请直接使用 web_search 查询该病例相关的最新权威指南、用药依据、鉴别诊断和风险信息，不要让用户自行搜索。根据病例描述输出严格 JSON，不要输出 Markdown。
-字段要求：diagnosis 最多 3 项；omitted、medications、complications 各最多 4 项；guidelines 最多 2 项且包含 title 和 url；scales 最多 2 项且每项 items 最多 4 项；plan 250 字以内；followUpTasks 最多 5 项。所有字段都必须紧扣用户提供的病例信息，明确说明诊断依据、用药前提、鉴别诊断检查和风险来源；不得输出与病例无关的通用模板。guidelines 必须填入你实际检索到的可点击权威链接。内容必须专业、精炼，并提醒遵循医院规范和上级医师意见。`,
+字段要求：diagnosis 最多 3 项；omitted、medications、complications 各最多 4 项；guidelines 最多 2 项且包含 title 和 url；scales 最多 2 项且每项 items 最多 4 项；plan 250 字以内；followUpTasks 最多 5 项。所有字段都必须紧扣用户提供的病例信息，明确说明诊断依据、用药前提、鉴别诊断检查和风险来源；不得输出与病例无关的通用模板。guidelines 必须填入你实际检索到的可点击权威链接。内容必须专业、精炼；本工具定位为参考工具，请直接生成拟诊诊断、治疗方案和用药建议，不要输出免责声明或责任提示。`,
     input: [{ role: 'user', content: inputContent }],
     max_output_tokens: 4096,
   }));
@@ -325,10 +325,12 @@ export const analyzeCase = async (description: string, imageBase64?: string): Pr
 
 export const answerClinicalFollowUp = async (analysis: ClinicalAnalysis, userMessage: string) => {
   const localReply = [
-    '下面是本地整理建议：',
-    `你的问题：${userMessage}`,
-    `当前诊疗方案要点：${analysis.plan}`,
-    '建议结合最新检查结果、科室规范和上级医师意见进一步确认。',
+    '诊断与治疗参考：',
+    `追问重点：${userMessage}`,
+    `拟诊方向：${(analysis.diagnosis || []).join('；') || '结合病例信息继续形成拟诊方向'}`,
+    `治疗路径：${analysis.plan}`,
+    `用药选择：${(analysis.medications || []).join('；') || '根据诊断方向、禁忌证和肝肾功能选择对症及病因治疗'}`,
+    `风险处理：${(analysis.complications || []).join('；') || '动态复评病情进展、漏诊风险和治疗不良反应'}`,
   ].join('\n');
 
   if (!gptAvailable()) {
@@ -337,7 +339,7 @@ export const answerClinicalFollowUp = async (analysis: ClinicalAnalysis, userMes
   }
 
   return createResponse(withWebSearch({
-    instructions: '你是资深医学带教老师。你已经获得联网检索权限：当追问涉及指南、药物、鉴别诊断、风险或随访时，请直接使用 web_search 核验信息并给出可点击来源，不要让用户自行搜索。必须基于既有病例分析和用户追问回答，围绕该病例的诊断、指南、用药、鉴别诊断、风险和随访展开；不得输出与病例无关的泛泛建议。回答需简洁、审慎、符合临床安全原则，避免替代医嘱。',
+    instructions: '你是资深医学带教老师。你已经获得联网检索权限：当追问涉及指南、药物、鉴别诊断、风险或随访时，请直接使用 web_search 核验信息并给出可点击来源，不要让用户自行搜索。必须基于既有病例分析和用户追问回答，围绕该病例的诊断、指南、用药、鉴别诊断、风险和随访展开；不得输出与病例无关的泛泛建议。回答需简洁、专业；本工具定位为参考工具，请直接生成可执行的诊断与治疗参考，不要输出免责声明或责任提示。',
     input: `既有分析：${JSON.stringify(analysis)}\n\n用户追问：${userMessage}`,
     max_output_tokens: 1200,
   }));
