@@ -1,0 +1,7 @@
+{
+  "name": "MedQuest Pro: 规培生全能成长助手",
+  "description": "一个专为医学生和规培医生设计的全能应用，涵盖习惯养成、临床决策支持及科研辅助功能，助力职业生涯快速成长。",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
